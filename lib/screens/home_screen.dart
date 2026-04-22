@@ -1,6 +1,7 @@
-// Modified: 2025-12-09
 // lib/screens/home_screen.dart
-// Nouvelle page d'accueil Pentapol
+// Modified: 2604221500
+// Icône solo (person) pour le mode Pentoscope Speed
+// CHANGEMENTS: (1) Icons.search → Icons.person ligne 82
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -79,7 +80,7 @@ class HomeScreen extends ConsumerWidget {
                       children: [
                         const SizedBox(height: 12),
                         _MenuCard(
-                          icon: Icons.search,
+                          icon: Icons.person,
                           title: 'Pentominos Speed',
                           subtitle: 'Placer de 3 à 6 pieces',
                           color: colorScheme.secondary,

@@ -1,6 +1,7 @@
 // lib/pentoscope/screens/pentoscope_game_screen.dart
-// Modified: 2512191000
-// Refactorisation UI: Actions isométrie contextuelles (slider vs plateau)
+// Modified: 2604221500
+// Icône solo (person) pour bouton nouvelle partie
+// CHANGEMENTS: (1) Icons.sports_esports → Icons.person ligne 166
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -71,6 +72,13 @@ class _PentoscopeGameScreenState extends ConsumerState<PentoscopeGameScreen> {
     final state = ref.watch(pentoscopeProvider);
     final notifier = ref.read(pentoscopeProvider.notifier);
     final settings = ref.watch(settingsProvider);
+
+    // Bilan affiché une seule fois à la complétion
+    ref.listen<PentoscopeState>(pentoscopeProvider, (prev, next) {
+      if (next.isComplete && !(prev?.isComplete ?? false)) {
+        _showCompletionDialog(context, next, notifier);
+      }
+    });
 
     if (state.puzzle == null) {
       return const Scaffold(body: Center(child: Text('Aucun puzzle')));
@@ -160,10 +168,10 @@ class _PentoscopeGameScreenState extends ConsumerState<PentoscopeGameScreen> {
               onPressed: () => _navigateToMultiplayer(context),
               tooltip: 'Mode multijoueur',
             ),
-            // 🎮 Manette pour réinitialiser
+            // 👤 Solo — réinitialiser
             IconButton(
               icon: Icon(
-                Icons.sports_esports,
+                Icons.person,
                 color: state.isComplete ? Colors.green : Colors.indigo,
               ),
               onPressed: () {
@@ -172,18 +180,22 @@ class _PentoscopeGameScreenState extends ConsumerState<PentoscopeGameScreen> {
               },
               tooltip: 'Nouvelle partie',
             ),
-            // 💡 Bouton Hint (lampe)
-            if (!state.isComplete &&
-                state.hasPossibleSolution &&
-                state.availablePieces.isNotEmpty)
+            // 💡 Bouton Hint (lampe) — amber si solution possible, rouge sinon
+            if (!state.isComplete && state.availablePieces.isNotEmpty)
               IconButton(
-                icon: const Icon(Icons.lightbulb_outline),
-                color: Colors.amber,
+                icon: Icon(
+                  state.hasPossibleSolution
+                      ? Icons.lightbulb
+                      : Icons.lightbulb,
+                  color: state.hasPossibleSolution ? Colors.amber : Colors.red,
+                ),
                 onPressed: () {
-                  HapticFeedback.mediumImpact();
-                  notifier.applyHint();
+                  if (state.hasPossibleSolution) {
+                    HapticFeedback.mediumImpact();
+                    notifier.applyHint();
+                  }
                 },
-                tooltip: 'Indice',
+                tooltip: state.hasPossibleSolution ? 'Indice' : 'Aucune solution possible',
               ),
             // 🎬 Démo automatique
             IconButton(
@@ -200,9 +212,9 @@ class _PentoscopeGameScreenState extends ConsumerState<PentoscopeGameScreen> {
               },
               tooltip: 'Démo automatique',
             ),
-            // 🧩 Mode Classique
+            // 🔍 Mode Classique
             IconButton(
-              icon: const Icon(Icons.extension),
+              icon: const Icon(Icons.manage_search),
               color: Colors.blue,
               onPressed: () {
                 HapticFeedback.selectionClick();
@@ -875,6 +887,57 @@ class _PentoscopeGameScreenState extends ConsumerState<PentoscopeGameScreen> {
     );
   }
 
+  /// 🏆 Bilan affiché à la complétion du puzzle
+  void _showCompletionDialog(BuildContext context, PentoscopeState state, PentoscopeNotifier notifier) {
+    final seconds = state.elapsedSeconds;
+    final mm = (seconds ~/ 60).toString().padLeft(2, '0');
+    final ss = (seconds % 60).toString().padLeft(2, '0');
+    final timeStr = '$mm:$ss';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.emoji_events, color: Colors.amber, size: 28),
+            SizedBox(width: 8),
+            Text('Puzzle réussi !'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Divider(),
+            const SizedBox(height: 8),
+            _BilanRow(icon: Icons.timer_outlined, label: 'Temps', value: timeStr),
+            const SizedBox(height: 12),
+            _BilanRow(icon: Icons.rotate_right, label: 'Isométries', value: '${state.isometryCount}'),
+            if (state.hintCount > 0) ...[
+              const SizedBox(height: 12),
+              _BilanRow(icon: Icons.lightbulb, label: 'Indices', value: '${state.hintCount}', valueColor: Colors.orange),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Fermer'),
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.refresh, size: 18),
+            label: const Text('Nouvelle partie'),
+            onPressed: () {
+              Navigator.of(context).pop();
+              notifier.reset();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   /// 📏 Affiche le dialogue de changement de taille de plateau
   void _showSizeChangeDialog(BuildContext context, WidgetRef ref) {
     final currentSize = ref.read(pentoscopeProvider).puzzle?.size;
@@ -920,6 +983,40 @@ class _PentoscopeGameScreenState extends ConsumerState<PentoscopeGameScreen> {
       MaterialPageRoute(
         builder: (_) => const PentoscopeMPLobbyScreen(),
       ),
+    );
+  }
+}
+
+class _BilanRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  const _BilanRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: theme.colorScheme.primary),
+        const SizedBox(width: 10),
+        Text(label, style: theme.textTheme.bodyMedium),
+        const Spacer(),
+        Text(
+          value,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: valueColor ?? theme.colorScheme.primary,
+          ),
+        ),
+      ],
     );
   }
 }
