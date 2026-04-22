@@ -49,6 +49,51 @@ Chaque pièce reçoit un **code entier sur 6 bits** (`bit6`) qui lui est unique.
 
 Les codes bit6 vont de 7 à 49. Aucun code n'est 0 (réservé pour "case vide") ni ne dépasse 63 (6 bits max).
 
+### Pourquoi 6 bits et pas 4 ou 5 ?
+
+4 bits suffiraient à représenter 12 valeurs distinctes (1–12). Mais le choix de 6 bits n'est pas arbitraire : il repose sur une propriété algébrique qui rend le test de présence d'une pièce dans une solution **non ambigu par simple ET logique**.
+
+**La propriété clé : tous les codes ont exactement 3 bits à 1 (poids de Hamming constant = 3).**
+
+```
+ 7  = 0b000111  → 3 bits à 1
+11  = 0b001011  → 3 bits à 1
+13  = 0b001101  → 3 bits à 1
+... (idem pour les 12 codes)
+```
+
+Ce poids constant garantit : pour deux codes distincts `P` et `Q`, tous deux de poids 3,
+il est **impossible** que `P & Q == P` ou `P & Q == Q`.
+
+> Preuve : `P & Q == Q` signifierait que tous les bits de Q sont contenus dans P. Si P et Q ont tous les deux exactement 3 bits à 1, "Q contenu dans P" implique P = Q. Donc pour P ≠ Q, c'est impossible.
+
+**Ce que ça permet :** pour tester si une pièce (code `P`) est présente dans un champ 6 bits d'une solution (`S`) :
+
+```
+S & P == 0   →  case vide, la pièce peut aller là
+S & P == P   →  cette pièce exacte est présente (équivaut à S == P)
+autre        →  une autre pièce occupe cette case
+```
+
+Le test `S & P == P` est **sans faux positif** : il ne peut jamais être vrai si une pièce différente occupe la case, car aucun code valide n'est un sous-ensemble d'un autre.
+
+Avec des codes séquentiels sur 4 bits (poids variable), ce test serait ambigu. Par exemple :
+```
+pièce 3  = 0b0011
+pièce 7  = 0b0111
+0b0111 & 0b0011 == 0b0011  ←  faux positif : on "verrait" la pièce 3 là où il y a la pièce 7
+```
+
+**Pourquoi 6 bits minimum ?** Il faut `C(n, 3) ≥ 12` pour avoir 12 codes distincts à poids 3 :
+
+| n bits | C(n, 3) | Assez pour 12 pièces ? |
+|--------|---------|------------------------|
+| 4      | 4       | Non                    |
+| 5      | 10      | Non                    |
+| **6**  | **20**  | **Oui** (8 codes libres)|
+
+6 est le minimum pour lequel `C(n, 3) ≥ 12`. Le choix de 6 bits est donc contraint par cette combinatoire, pas par la taille de l'espace de valeurs.
+
 ---
 
 ## Les orientations : numéros de cases dans l'ordre des cellules
