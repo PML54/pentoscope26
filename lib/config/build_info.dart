@@ -1,0 +1,46 @@
+// GÉNÉRÉ AUTOMATIQUEMENT par scripts/update_version.sh
+// NE PAS MODIFIER MANUELLEMENT
+// Dernière génération : 17/03/2026 à 19:51
+
+/// Informations de build de l'application
+class BuildInfo {
+  /// Version de l'application (format semver)
+  static const String version = '1.0.3';
+
+  /// Numéro de build (format YYYYMMDDHHMM)
+  static const int buildNumber = 202603171951;
+
+  /// Date et heure du build (ISO 8601)
+  static const String buildDate = '2026-03-17T19:51:59';
+
+  /// Date formatée pour affichage
+  static String get buildDateFormatted {
+    final dt = DateTime.parse(buildDate);
+    return '${dt.day.toString().padLeft(2, '0')}/'
+           '${dt.month.toString().padLeft(2, '0')}/'
+           '${dt.year} à '
+           '${dt.hour.toString().padLeft(2, '0')}:'
+           '${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  /// Version complète pour affichage
+  static String get fullVersion => '$version ($buildNumber)';
+
+  /// Chaîne complète avec date
+  static String get versionWithDate => '$fullVersion - $buildDateFormatted';
+
+  /// Nom de l'application
+  static const String appName = 'Pentapol';
+
+  /// Description courte
+  static const String description = 'Puzzles Pentominos';
+
+  /// Auteur
+  static const String author = 'PML';
+
+  /// Année de copyright
+  static const String copyrightYear = '2025';
+
+  /// Ne pas instancier
+  BuildInfo._();
+}

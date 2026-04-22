@@ -1,0 +1,12 @@
+dart_id,relative_path,first_dir,filename
+55,"common/bigint_plateau.dart","common","bigint_plateau.dart"
+50,"common/isometry_transformation_service.dart","common","isometry_transformation_service.dart"
+56,"common/isometry_transforms.dart","common","isometry_transforms.dart"
+15,"config/ui_layout_provider.dart","config","ui_layout_provider.dart"
+1,"database/settings_database.g.dart","database","settings_database.g.dart"
+4,"pentoscope/piece_difficulty.dart","pentoscope","piece_difficulty.dart"
+38,"screens/pentomino_game/utils/game_utils.dart","screens","game_utils.dart"
+30,"screens/solutions_viewer_screen.dart","screens","solutions_viewer_screen.dart"
+21,"utils/pentomino_geometry.dart","utils","pentomino_geometry.dart"
+22,"utils/solution_collector.dart","utils","solution_collector.dart"
+19,"utils/time_format.dart","utils","time_format.dart"
