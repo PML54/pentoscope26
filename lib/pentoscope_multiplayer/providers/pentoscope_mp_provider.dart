@@ -1,5 +1,7 @@
 // lib/pentoscope_multiplayer/providers/pentoscope_mp_provider.dart
-// Provider Riverpod pour Pentoscope Multiplayer
+// Modified: 2604221200
+// Fix robustesse WebSocket
+// CHANGEMENTS: (1) Timeout 10s sur ready ligne 108+184, (2) _cleanup dans _onError ligne 532, (3) guard double finished dans _handleGameEnd ligne 495
 
 import 'dart:async';
 import 'dart:convert';
@@ -105,17 +107,20 @@ class PentoscopeMPNotifier extends Notifier<PentoscopeMPState> {
       debugPrint('[MP] 🔌 Connexion WebSocket à $wsUrl...');
 
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-      await _channel!.ready;
-      
+      await _channel!.ready.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => throw TimeoutException('Timeout connexion WebSocket'),
+      );
+
       debugPrint('[MP] ✅ WebSocket connecté !');
-      
+
       // Écouter les messages
       _messageSubscription = _channel!.stream.listen(
         _onMessage,
         onError: _onError,
         onDone: _onDone,
       );
-      
+
       // Envoyer create_room (pour s'enregistrer comme host)
       _send(CreateRoomMessage(
         playerName: playerName,
@@ -181,17 +186,20 @@ class PentoscopeMPNotifier extends Notifier<PentoscopeMPState> {
       debugPrint('[MP] 🔌 Connexion WebSocket à $wsUrl...');
 
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-      await _channel!.ready;
-      
+      await _channel!.ready.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => throw TimeoutException('Timeout connexion WebSocket'),
+      );
+
       debugPrint('[MP] ✅ WebSocket connecté !');
-      
+
       // Écouter les messages
       _messageSubscription = _channel!.stream.listen(
         _onMessage,
         onError: _onError,
         onDone: _onDone,
       );
-      
+
       // Envoyer join_room
       _send(JoinRoomMessage(
         roomCode: code,
@@ -494,7 +502,23 @@ class PentoscopeMPNotifier extends Notifier<PentoscopeMPState> {
 
   void _handleGameEnd(GameEndMessage msg) {
     debugPrint('[MP] 🎯 Fin de partie !');
-    
+
+    if (state.gameState == PentoscopeMPGameState.finished) {
+      // Déjà géré par _handlePlayerCompleted — juste mettre à jour les rangs
+      final updatedPlayers = state.players.map((p) {
+        final ranking = msg.rankings.where((r) => r.playerId == p.id).firstOrNull;
+        if (ranking != null) {
+          return p.copyWith(
+            rank: ranking.rank,
+            completionTime: ranking.timeMs != null ? ranking.timeMs! ~/ 1000 : null,
+          );
+        }
+        return p;
+      }).toList();
+      state = state.copyWith(players: updatedPlayers);
+      return;
+    }
+
     // Mettre à jour les rangs finaux
     final updatedPlayers = state.players.map((p) {
       final ranking = msg.rankings.where((r) => r.playerId == p.id).firstOrNull;
@@ -531,7 +555,7 @@ class PentoscopeMPNotifier extends Notifier<PentoscopeMPState> {
 
   void _onError(dynamic error) {
     debugPrint('[MP] ❌ Erreur WebSocket: $error');
-    
+    _cleanup();
     state = state.copyWith(
       gameState: PentoscopeMPGameState.error,
       errorMessage: 'Connexion perdue',
