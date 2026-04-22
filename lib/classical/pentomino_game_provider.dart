@@ -1,7 +1,7 @@
 // lib/classical/pentomino_game_provider.dart
 // Modified: 2604221200
-// Fix fuite mémoire timer
-// CHANGEMENTS: (1) Ajout ref.onDispose() dans build() ligne 163
+// Refactor: absoluteCells remplace boucles cellNum manuelles, print→debugPrint
+// CHANGEMENTS: (1) absoluteCells dans cancelSelection/hint/tutorial, (2) 49 print→debugPrint, (3) ref.onDispose()
 
 import 'dart:async';
 
@@ -187,26 +187,16 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
 
       // Replacer toutes les pièces déjà placées
       for (final placed in state.placedPieces) {
-        final position = placed.piece.orientations[placed.positionIndex];
-
-        for (final cellNum in position) {
-          final localX = (cellNum - 1) % 5;
-          final localY = (cellNum - 1) ~/ 5;
-          final x = placed.gridX + localX;
-          final y = placed.gridY + localY;
-          newPlateau.setCell(x, y, placed.piece.id);
+        for (final cell in placed.absoluteCells) {
+          newPlateau.setCell(cell.x, cell.y, placed.piece.id);
         }
       }
 
       // Replacer la pièce qui était sélectionnée à sa position d'origine
-      final position = placedPiece.piece.orientations[state.selectedPositionIndex];
-      for (final cellNum in position) {
-        final localX = (cellNum - 1) % 5;
-        final localY = (cellNum - 1) ~/ 5;
-        final x = placedPiece.gridX + localX;
-        final y = placedPiece.gridY + localY;
-        if (x >= 0 && x < 6 && y >= 0 && y < 10) {
-          newPlateau.setCell(x, y, placedPiece.piece.id);
+      final restoredPiece = placedPiece.copyWith(positionIndex: state.selectedPositionIndex);
+      for (final cell in restoredPiece.absoluteCells) {
+        if (cell.x >= 0 && cell.x < 6 && cell.y >= 0 && cell.y < 10) {
+          newPlateau.setCell(cell.x, cell.y, placedPiece.piece.id);
         }
       }
 
@@ -290,14 +280,9 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
     // 6️⃣ Reconstruire le plateau avec la nouvelle pièce
     final newPlateau = Plateau.allVisible(6, 10);
     for (final placed in newPlaced) {
-      final position = placed.piece.orientations[placed.positionIndex];
-      for (final cellNum in position) {
-        final localX = (cellNum - 1) % 5;
-        final localY = (cellNum - 1) ~/ 5;
-        final x = placed.gridX + localX;
-        final y = placed.gridY + localY;
-        if (x >= 0 && x < 6 && y >= 0 && y < 10) {
-          newPlateau.setCell(x, y, placed.piece.id);
+      for (final cell in placed.absoluteCells) {
+        if (cell.x >= 0 && cell.x < 6 && cell.y >= 0 && cell.y < 10) {
+          newPlateau.setCell(cell.x, cell.y, placed.piece.id);
         }
       }
     }
@@ -462,7 +447,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
       final solutionsCount = _computeSolutionsWithTransformedPiece(
         transformedPiece,
       );
-      print('[GAME] 🎯 Solutions possibles après cycle : $solutionsCount');
+      debugPrint('[GAME] 🎯 Solutions possibles après cycle : $solutionsCount');
 
       // Mettre à jour l'état
       state = state.copyWith(
@@ -629,7 +614,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
     newHighlights[Point(x, y)] = color;
 
     state = state.copyWith(cellHighlights: newHighlights);
-    print('[TUTORIAL] Case ($x, $y) surlignée');
+    debugPrint('[TUTORIAL] Case ($x, $y) surlignée');
   }
 
   /// Surligne plusieurs cases avec la même couleur
@@ -643,7 +628,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
     }
 
     state = state.copyWith(cellHighlights: newHighlights);
-    print('[TUTORIAL] ${cells.length} cases surlignées');
+    debugPrint('[TUTORIAL] ${cells.length} cases surlignées');
   }
 
   /// 🆕 Surligne une icône d'isométrie (pour tutoriel)
@@ -651,17 +636,17 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
   void highlightIsometryIcon(String iconName) {
     final validIcons = ['rotation', 'rotation_cw', 'symmetry_h', 'symmetry_v'];
     if (!validIcons.contains(iconName)) {
-      print('[TUTORIAL] ⚠️ Icône invalide: $iconName (attendu: ${validIcons.join(", ")})');
+      debugPrint('[TUTORIAL] ⚠️ Icône invalide: $iconName (attendu: ${validIcons.join(", ")})');
       return;
     }
     state = state.copyWith(highlightedIsometryIcon: iconName);
-    print('[TUTORIAL] 🔆 Icône d\'isométrie surlignée: $iconName');
+    debugPrint('[TUTORIAL] 🔆 Icône d\'isométrie surlignée: $iconName');
   }
 
   /// Surligne la mastercase d'une pièce
   void highlightMastercase(Point position) {
     state = state.copyWith(highlightedMastercase: position);
-    print('[TUTORIAL] Mastercase surlignée en (${position.x}, ${position.y})');
+    debugPrint('[TUTORIAL] Mastercase surlignée en (${position.x}, ${position.y})');
   }
 
   /// Surligne une pièce dans le slider (sans la sélectionner)
@@ -671,7 +656,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
     }
 
     state = state.copyWith(highlightedSliderPiece: pieceNumber);
-    print('[TUTORIAL] Pièce $pieceNumber surlignée dans le slider');
+    debugPrint('[TUTORIAL] Pièce $pieceNumber surlignée dans le slider');
   }
 
   /// Surligne une pièce posée sur le plateau (sans la sélectionner)
@@ -687,7 +672,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
     }
 
     state = state.copyWith(highlightedBoardPiece: pieceNumber);
-    print('[TUTORIAL] Pièce $pieceNumber surlignée sur le plateau');
+    debugPrint('[TUTORIAL] Pièce $pieceNumber surlignée sur le plateau');
   }
 
   /// Surligne toutes les positions valides pour la pièce sélectionnée
@@ -715,7 +700,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
     }
 
     highlightCells(validCells, color);
-    print('[TUTORIAL] ${validCells.length} positions valides surlignées');
+    debugPrint('[TUTORIAL] ${validCells.length} positions valides surlignées');
   }
 
   /// Place la pièce sélectionnée à la position indiquée (pour tutoriel)
@@ -723,7 +708,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
   /// gridX/gridY = position de la MASTERCASE (pas du coin haut-gauche)
   void placeSelectedPieceForTutorial(int gridX, int gridY) {
     if (state.selectedPiece == null) {
-      print('[TUTORIAL] ⚠️ Aucune pièce sélectionnée');
+      debugPrint('[TUTORIAL] ⚠️ Aucune pièce sélectionnée');
       return;
     }
 
@@ -744,37 +729,28 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
 
     // Vérifier que la position est valide
     if (!state.canPlacePiece(piece, positionIndex, anchorX, anchorY)) {
-      print('[TUTORIAL] ⚠️ Position invalide pour placer la pièce');
+      debugPrint('[TUTORIAL] ⚠️ Position invalide pour placer la pièce');
       return;
     }
 
     // Créer le plateau avec toutes les pièces existantes
     final newPlateau = Plateau.allVisible(6, 10);
     for (final placed in state.placedPieces) {
-      final pos = placed.piece.orientations[placed.positionIndex];
-      for (final cellNum in pos) {
-        final localX = (cellNum - 1) % 5;
-        final localY = (cellNum - 1) ~/ 5;
-        final x = placed.gridX + localX;
-        final y = placed.gridY + localY;
-        newPlateau.setCell(x, y, 1);
+      for (final cell in placed.absoluteCells) {
+        newPlateau.setCell(cell.x, cell.y, placed.piece.id);
       }
     }
 
     // Ajouter la nouvelle pièce au plateau
-    for (final cellNum in position) {
-      final localX = (cellNum - 1) % 5;
-      final localY = (cellNum - 1) ~/ 5;
-      newPlateau.setCell(anchorX + localX, anchorY + localY, 1);
-    }
-
-    // Créer l'objet PlacedPiece (avec l'ancre, pas la mastercase)
-    final placedPiece = PlacedPiece(
+    final newPlacedPiece = PlacedPiece(
       piece: piece,
       positionIndex: positionIndex,
-      gridX: anchorX,  // ← Ancre, pas mastercase
-      gridY: anchorY,  // ← Ancre, pas mastercase
+      gridX: anchorX,
+      gridY: anchorY,
     );
+    for (final cell in newPlacedPiece.absoluteCells) {
+      newPlateau.setCell(cell.x, cell.y, piece.id);
+    }
 
     // Retirer la pièce des disponibles
     final newAvailable = List<Pento>.from(state.availablePieces)
@@ -782,7 +758,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
 
     // Ajouter aux pièces placées
     final newPlaced = List<PlacedPiece>.from(state.placedPieces)
-      ..add(placedPiece);
+      ..add(newPlacedPiece);
 
     // Calculer le nombre de solutions possibles
     final solutionsCount = newPlateau.countPossibleSolutions();
@@ -796,8 +772,8 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
       solutionsCount: solutionsCount,
     );
 
-    print('[TUTORIAL] 🔍 PlacedPiece absoluteCells: ${placedPiece.absoluteCells.toList()}');
-    print('[TUTORIAL] ✅ Pièce ${piece.id} placée avec mastercase en ($gridX, $gridY)');
+    debugPrint('[TUTORIAL] 🔍 PlacedPiece absoluteCells: ${newPlacedPiece.absoluteCells.toList()}');
+    debugPrint('[TUTORIAL] ✅ Pièce ${piece.id} placée avec mastercase en ($gridX, $gridY)');
   }
 
   /// Retire une pièce placée du plateau
@@ -846,9 +822,9 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
     );
     _recomputeBoardValidity();
 
-    print('[GAME] 🗑️ Pièce ${placedPiece.piece.id} retirée du plateau');
+    debugPrint('[GAME] 🗑️ Pièce ${placedPiece.piece.id} retirée du plateau');
     if (solutionsCount != null) {
-      print('[GAME] 🎯 Solutions possibles: $solutionsCount');
+      debugPrint('[GAME] 🎯 Solutions possibles: $solutionsCount');
     }
   }
 
@@ -865,7 +841,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
   /// Remet le slider à sa position initiale
   void resetSliderPosition() {
     state = state.copyWith(sliderOffset: 0);
-    print('[TUTORIAL] Slider remis à la position initiale');
+    debugPrint('[TUTORIAL] Slider remis à la position initiale');
   }
 
   // ============================================================
@@ -874,7 +850,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
 
   /// 🆕 Restaure un état sauvegardé (utilisé par TutorialProvider au quit)
   void restoreState(PentominoGameState savedState) {
-    print(
+    debugPrint(
       '[GAME] ♻️ Restauration de l\'état : ${savedState.placedPieces.length} pièces placées',
     );
     state = savedState;
@@ -886,7 +862,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
   void scrollSlider(int positions) {
     final newOffset = (state.sliderOffset + positions) % 12;
     state = state.copyWith(sliderOffset: newOffset);
-    print(
+    debugPrint(
       '[TUTORIAL] Slider décalé de $positions positions (offset: $newOffset)',
     );
   }
@@ -901,7 +877,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
     // (dépend de l'implémentation exacte du slider)
     final targetOffset = (pieceNumber - 1) % 12;
     state = state.copyWith(sliderOffset: targetOffset);
-    print('[TUTORIAL] Slider centré sur pièce $pieceNumber');
+    debugPrint('[TUTORIAL] Slider centré sur pièce $pieceNumber');
   }
 
   // ============================================================
@@ -913,11 +889,11 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
     // Récupérer l'index de position sauvegardé pour cette pièce
     final savedIndex = state.getPiecePositionIndex(piece.id);
     // Si une pièce du plateau est déjà sélectionnée, la replacer d'abord
-    print('[DEBUG PAYSAGE] 🔍 selectPiece(${piece.id})');
-    print(
+    debugPrint('[DEBUG PAYSAGE] 🔍 selectPiece(${piece.id})');
+    debugPrint(
       '[DEBUG PAYSAGE] 📋 piecePositionIndices: ${state.piecePositionIndices}',
     );
-    print('[DEBUG PAYSAGE] 📌 savedIndex pour pièce ${piece.id}: $savedIndex');
+    debugPrint('[DEBUG PAYSAGE] 📌 savedIndex pour pièce ${piece.id}: $savedIndex');
     if (state.selectedPlacedPiece != null) {
       final placedPiece = state.selectedPlacedPiece!;
 
@@ -984,7 +960,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
     final piece = pentominos.firstWhere((p) => p.id == pieceNumber);
     selectPiece(piece);
 
-    print('[TUTORIAL] Pièce $pieceNumber sélectionnée depuis le slider');
+    debugPrint('[TUTORIAL] Pièce $pieceNumber sélectionnée depuis le slider');
   }
 
   // ============================================================
@@ -1103,7 +1079,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
       solutionsCount: solutionsCount, // ✅ AJOUT
     );
 
-    print(
+    debugPrint(
       '[GAME] 🔄 Pièce ${placedPiece.piece.id} sélectionnée pour déplacement (case ref: $selectedCell)',
     );
   }
@@ -1120,7 +1096,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
     // La case cliquée devient la mastercase
     selectPlacedPiece(placedPiece, x, y);
 
-    print('[TUTORIAL] Pièce ${placedPiece.piece.id} sélectionnée en ($x, $y)');
+    debugPrint('[TUTORIAL] Pièce ${placedPiece.piece.id} sélectionnée en ($x, $y)');
   }
 
   /// Sélectionne une pièce avec une mastercase explicite
@@ -1149,7 +1125,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
 
     selectPlacedPiece(placedPiece, mastercaseX, mastercaseY);
 
-    print(
+    debugPrint(
       '[TUTORIAL] Pièce $pieceNumber sélectionnée avec mastercase ($mastercaseX, $mastercaseY)',
     );
   }
@@ -1167,7 +1143,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
 
   void startTimer() {
     if (_startTime != null) return;
-    print('🚀 TIMER STARTED!');  // ← AJOUTER
+    debugPrint('🚀 TIMER STARTED!');  // ← AJOUTER
     _startTime = DateTime.now();
     _gameTimer = Timer.periodic(Duration(milliseconds: 100), (_) {
       // ✨ Mettre à jour elapsedSeconds
@@ -1191,10 +1167,10 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
 
     final piece = state.selectedPiece!;
     final positionIndex = state.selectedPositionIndex;
-    print(
+    debugPrint(
       '[DEBUG PLACEMENT] 🎯 tryPlacePiece: piece=${piece.id}, positionIndex=$positionIndex',
     );
-    print(
+    debugPrint(
       '[DEBUG PLACEMENT] 📋 piecePositionIndices=${state.piecePositionIndices}',
     );
     final wasPlacedPiece =
@@ -1213,7 +1189,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
       anchorX = gridX - state.selectedCellInPiece!.x;
       anchorY = gridY - state.selectedCellInPiece!.y;
 
-      print(
+      debugPrint(
         '[GAME] Translation: lâcher à ($gridX, $gridY), case ref locale (${state.selectedCellInPiece!.x}, ${state.selectedCellInPiece!.y}), anchor ($anchorX, $anchorY)',
       );
     }
@@ -1227,18 +1203,18 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
         anchorX = snapped.x;
         anchorY = snapped.y;
         canPlace = true;
-        print('[GAME] 🧲 Snap appliqué: nouvelle position ($anchorX, $anchorY)');
+        debugPrint('[GAME] 🧲 Snap appliqué: nouvelle position ($anchorX, $anchorY)');
       }
     }
 
     if (!canPlace) {
-      print('[GAME] ❌ Placement impossible à ($anchorX, $anchorY)');
+      debugPrint('[GAME] ❌ Placement impossible à ($anchorX, $anchorY)');
       return false;
     }
 
     // Vérifier si la pièce peut être placée
     if (!state.canPlacePiece(piece, positionIndex, anchorX, anchorY)) {
-      print('[GAME] ❌ Placement impossible à ($anchorX, $anchorY)');
+      debugPrint('[GAME] ❌ Placement impossible à ($anchorX, $anchorY)');
       return false;
     }
 
@@ -1323,10 +1299,10 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
       );
       _recomputeBoardValidity();
 
-      print(
+      debugPrint(
         '[GAME] ✅ Pièce ${piece.id} déplacée à ($anchorX, $anchorY) - reste sélectionnée',
       );
-      print('[GAME] 🎯 Solutions possibles: $solutionsCount');
+      debugPrint('[GAME] 🎯 Solutions possibles: $solutionsCount');
     } else {
       // C'était une pièce du slider → comportement normal (désélectionner)
       state = state.copyWith(
@@ -1341,9 +1317,9 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
       );
       _recomputeBoardValidity();
 
-      print('[GAME] ✅ Pièce ${piece.id} placée à ($anchorX, $anchorY)');
-      print('[GAME] Pièces restantes: ${newAvailable.length}');
-      print('[GAME] 🎯 Solutions possibles: $solutionsCount');
+      debugPrint('[GAME] ✅ Pièce ${piece.id} placée à ($anchorX, $anchorY)');
+      debugPrint('[GAME] Pièces restantes: ${newAvailable.length}');
+      debugPrint('[GAME] 🎯 Solutions possibles: $solutionsCount');
 
       // ✨ Si puzzle complet, identifier la solution et arrêter le timer
       if (newAvailable.isEmpty) {
@@ -1352,12 +1328,12 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
         if (solutionIndex >= 0) {
           final info = SolutionInfo(solutionIndex);
           state = state.copyWith(solvedSolutionIndex: solutionIndex);
-          print('[GAME] 🎉 Puzzle complété! Solution #${info.index}');
-          print('[GAME]    (canonique ${info.canonicalIndex}, ${info.variantName})');
-          print('[GAME]    Temps: ${getElapsedSeconds()} secondes');
+          debugPrint('[GAME] 🎉 Puzzle complété! Solution #${info.index}');
+          debugPrint('[GAME]    (canonique ${info.canonicalIndex}, ${info.variantName})');
+          debugPrint('[GAME]    Temps: ${getElapsedSeconds()} secondes');
         } else {
-          print('[GAME] 🎉 Puzzle complété! Temps: ${getElapsedSeconds()} secondes');
-          print('[GAME] ⚠️  Solution non identifiée dans la base');
+          debugPrint('[GAME] 🎉 Puzzle complété! Temps: ${getElapsedSeconds()} secondes');
+          debugPrint('[GAME] ⚠️  Solution non identifiée dans la base');
         }
       }
     }
@@ -1413,9 +1389,9 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
       clearSolvedSolutionIndex: true, // 🆕 Réinitialiser si on retire une pièce
     );
 
-    print('[GAME] ↩️ Undo: Pièce ${lastPlaced.piece.id} retirée');
+    debugPrint('[GAME] ↩️ Undo: Pièce ${lastPlaced.piece.id} retirée');
     if (solutionsCount != null) {
-      print('[GAME] 🎯 Solutions possibles: $solutionsCount');
+      debugPrint('[GAME] 🎯 Solutions possibles: $solutionsCount');
     }
   }
 
@@ -1710,7 +1686,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
 
     // Recalculer les solutions possibles
     final solutionsCount = _computeSolutionsWithTransformedPiece(transformedPiece);
-    print('[GAME] 🎯 Solutions possibles après symétrie ${isHorizontal ? 'horizontale' : 'verticale'} (mastercase) : $solutionsCount');
+    debugPrint('[GAME] 🎯 Solutions possibles après symétrie ${isHorizontal ? 'horizontale' : 'verticale'} (mastercase) : $solutionsCount');
 
     // Mettre à jour l'état
     state = state.copyWith(
@@ -1746,7 +1722,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
 
     // Recalculer les solutions possibles
     final solutionsCount = _computeSolutionsWithTransformedPiece(transformedPiece);
-    print('[GAME] 🎯 Solutions possibles après symétrie ${isHorizontal ? 'horizontale' : 'verticale'} : $solutionsCount');
+    debugPrint('[GAME] 🎯 Solutions possibles après symétrie ${isHorizontal ? 'horizontale' : 'verticale'} : $solutionsCount');
 
     // Mettre à jour l'état
     state = state.copyWith(
@@ -1816,7 +1792,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
 
       final solutionsCount =
           _computeSolutionsWithTransformedPiece(transformedPiece);
-      print(
+      debugPrint(
         '[GAME] 🎯 Solutions possibles après rotation ${isClockwise ? 'horaire' : 'anti-horaire'} : $solutionsCount',
       );
 
@@ -1846,7 +1822,7 @@ class PentominoGameNotifier extends Notifier<PentominoGameState>
 
     // Recalculer les solutions possibles
     final solutionsCount = _computeSolutionsWithTransformedPiece(transformedPiece);
-    print('[GAME] 🎯 Solutions possibles après rotation ${isClockwise ? 'horaire' : 'anti-horaire'} : $solutionsCount');
+    debugPrint('[GAME] 🎯 Solutions possibles après rotation ${isClockwise ? 'horaire' : 'anti-horaire'} : $solutionsCount');
 
     // Mettre à jour l'état
     state = state.copyWith(

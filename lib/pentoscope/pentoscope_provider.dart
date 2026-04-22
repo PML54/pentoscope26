@@ -1,7 +1,7 @@
 // lib/pentoscope/pentoscope_provider.dart
 // Modified: 2604221200
-// Fix fuite mémoire timer
-// CHANGEMENTS: (1) Ajout ref.onDispose() dans build() ligne 107
+// Refactor: helper _rebuildPlateau unifié, suppression duplications inline
+// CHANGEMENTS: (1) _rebuildPlateau() remplace 9 patterns inline, (2) ref.onDispose() dans build()
 import 'dart:async';
 import 'dart:math';
 
@@ -211,14 +211,7 @@ class PentoscopeNotifier extends Notifier<PentoscopeState>
     debugPrint('💡 HINT: Placer pièce ${hintPiece.id} à (${hintPlacement.gridX}, ${hintPlacement.gridY}) pos=${hintPlacement.positionIndex}');
 
     // Créer le nouveau plateau
-    final newPlateau = Plateau.allVisible(width, height);
-
-    // Copier les pièces existantes
-    for (final p in state.placedPieces) {
-      for (final cell in p.absoluteCells) {
-        newPlateau.setCell(cell.x, cell.y, p.piece.id);
-      }
-    }
+    final newPlateau = _rebuildPlateau();
 
     // Placer la nouvelle pièce
     final newPlaced = PentoscopePlacedPiece(
@@ -304,19 +297,8 @@ class PentoscopeNotifier extends Notifier<PentoscopeState>
   void cancelSelection() {
     // Si on avait une pièce placée sélectionnée, il faut la remettre sur le plateau
     if (state.selectedPlacedPiece != null) {
-      // Reconstruire le plateau avec TOUTES les pièces y compris celle sélectionnée
-      final newPlateau = Plateau.allVisible(
-        state.plateau.width,
-        state.plateau.height,
-      );
-      for (final p in state.placedPieces) {
-        for (final cell in p.absoluteCells) {
-          newPlateau.setCell(cell.x, cell.y, p.piece.id);
-        }
-      }
-
       state = state.copyWith(
-        plateau: newPlateau,
+        plateau: _rebuildPlateau(),
         clearSelectedPiece: true,
         clearSelectedPlacedPiece: true,
         clearSelectedCellInPiece: true,
@@ -381,17 +363,7 @@ class PentoscopeNotifier extends Notifier<PentoscopeState>
   }
 
   void removePlacedPiece(PentoscopePlacedPiece placed) {
-    final newPlateau = Plateau.allVisible(
-      state.plateau.width,
-      state.plateau.height,
-    );
-
-    for (final p in state.placedPieces) {
-      if (p.piece.id == placed.piece.id) continue;
-      for (final cell in p.absoluteCells) {
-        newPlateau.setCell(cell.x, cell.y, p.piece.id);
-      }
-    }
+    final newPlateau = _rebuildPlateau(exclude: placed);
 
     final newPlaced = state.placedPieces
         .where((p) => p.piece.id != placed.piece.id)
@@ -480,21 +452,9 @@ class PentoscopeNotifier extends Notifier<PentoscopeState>
     final defaultCell = _calculateDefaultCell(piece, positionIndex);
     _cancelSelectedPlacedPieceIfAny();
 
-    // ✅ RESTAURER LE PLATEAU COMPLET avec TOUTES les pièces placées
-    final newPlateau = Plateau.allVisible(
-      state.plateau.width,
-      state.plateau.height,
-    );
-    for (final p in state.placedPieces) {
-      for (final cell in p.absoluteCells) {
-        newPlateau.setCell(cell.x, cell.y, p.piece.id);
-      }
-    }
-
     // ✨ BUGFIX: Mettre à jour le plateau EN PREMIER
     state = state.copyWith(
-      plateau: newPlateau,
-      // ← CLÉ!
+      plateau: _rebuildPlateau(),
       selectedPiece: piece,
       selectedPositionIndex: positionIndex,
       clearSelectedPlacedPiece: true,
@@ -547,22 +507,10 @@ class PentoscopeNotifier extends Notifier<PentoscopeState>
     // Si on n'a pas trouvé, utiliser les coordonnées brutes (fallback)
     final mastercase = normalizedMastercase ?? Point(rawLocalX, rawLocalY);
 
-    // Retirer la pièce du plateau temporairement
-    final newPlateau = Plateau.allVisible(
-      state.plateau.width,
-      state.plateau.height,
-    );
-    for (final p in state.placedPieces) {
-      if (p.piece.id == placed.piece.id) continue;
-      for (final cell in p.absoluteCells) {
-        newPlateau.setCell(cell.x, cell.y, p.piece.id);
-      }
-    }
-
     // ✨ BUGFIX: Mettre à jour le plateau dans l'état EN PREMIER
     // Sinon _generateValidPlacements() utilise l'ancien plateau!
     state = state.copyWith(
-      plateau: newPlateau,
+      plateau: _rebuildPlateau(exclude: placed),
       selectedPiece: placed.piece,
       selectedPlacedPiece: placed,
       selectedPositionIndex: placed.positionIndex,
@@ -784,22 +732,8 @@ class PentoscopeNotifier extends Notifier<PentoscopeState>
       return false;
     }
 
-    // Créer le nouveau plateau
-    final newPlateau = Plateau.allVisible(
-      state.plateau.width,
-      state.plateau.height,
-    );
-
-    // Copier les pièces existantes (sauf celle qu'on déplace si c'est une pièce placée)
-    for (final p in state.placedPieces) {
-      if (state.selectedPlacedPiece != null &&
-          p.piece.id == state.selectedPlacedPiece!.piece.id) {
-        continue;
-      }
-      for (final cell in p.absoluteCells) {
-        newPlateau.setCell(cell.x, cell.y, p.piece.id);
-      }
-    }
+    // Créer le nouveau plateau (sans la pièce en cours de déplacement si applicable)
+    final newPlateau = _rebuildPlateau(exclude: state.selectedPlacedPiece);
 
     // Placer la nouvelle pièce
     final newPlaced = PentoscopePlacedPiece(
@@ -1139,15 +1073,7 @@ class PentoscopeNotifier extends Notifier<PentoscopeState>
     }).toList();
 
     // 🔄 Reconstruire le plateau avec les pièces mises à jour
-    final newPlateau = Plateau.allVisible(
-      state.plateau.width,
-      state.plateau.height,
-    );
-    for (final p in updatedPlacedPieces) {
-      for (final cell in p.absoluteCells) {
-        newPlateau.setCell(cell.x, cell.y, p.piece.id);
-      }
-    }
+    final newPlateau = _rebuildPlateau(pieces: updatedPlacedPieces);
 
     // 💡 Recalculer si une solution est encore possible
     final hasPossibleSolution = state.availablePieces.isNotEmpty
@@ -1398,15 +1324,7 @@ class PentoscopeNotifier extends Notifier<PentoscopeState>
       return p;
     }).toList();
 
-    final newPlateau = Plateau.allVisible(
-      state.plateau.width,
-      state.plateau.height,
-    );
-    for (final p in updatedPlacedPieces) {
-      for (final cell in p.absoluteCells) {
-        newPlateau.setCell(cell.x, cell.y, p.piece.id);
-      }
-    }
+    final newPlateau = _rebuildPlateau(pieces: updatedPlacedPieces);
 
     final hasPossibleSolution = state.availablePieces.isNotEmpty
         ? _checkHasPossibleSolutionWith(
@@ -1571,7 +1489,7 @@ class PentoscopeNotifier extends Notifier<PentoscopeState>
     if (state.selectedPlacedPiece == null) return;
 
     state = state.copyWith(
-      plateau: _rebuildPlateauFromPlacedPieces(),
+      plateau: _rebuildPlateau(),
       clearSelectedPlacedPiece: true,
       clearSelectedMasterAbs: true,
       clearPreview: true,
@@ -1643,16 +1561,7 @@ class PentoscopeNotifier extends Notifier<PentoscopeState>
     int maxRadius = 5,
   }) {
     // Retirer temporairement la pièce du plateau pour la vérification
-    final tempPlateau = Plateau.allVisible(
-      state.plateau.width,
-      state.plateau.height,
-    );
-    for (final p in state.placedPieces) {
-      if (p.piece.id == piece.piece.id) continue; // Exclure la pièce transformée
-      for (final cell in p.absoluteCells) {
-        tempPlateau.setCell(cell.x, cell.y, p.piece.id);
-      }
-    }
+    final tempPlateau = _rebuildPlateau(exclude: piece);
 
     // Trouver la cellule de la mastercase dans la pièce transformée
     final transformedPosition = piece.piece.orientations[piece.positionIndex];
@@ -1841,17 +1750,22 @@ class PentoscopeNotifier extends Notifier<PentoscopeState>
         piece.gridY;
   }
 
-  Plateau _rebuildPlateauFromPlacedPieces() {
-    final newPlateau = Plateau.allVisible(
-      state.plateau.width,
-      state.plateau.height,
-    );
-    for (final p in state.placedPieces) {
-      for (final cell in p.absoluteCells) {
-        newPlateau.setCell(cell.x, cell.y, p.piece.id);
+  // Helper unifié : reconstruit le plateau depuis une liste de pièces.
+  // exclude : pièce à ignorer (ex: pièce sélectionnée temporairement retirée).
+  // pieces  : liste source (défaut: state.placedPieces).
+  Plateau _rebuildPlateau({
+    List<PentoscopePlacedPiece>? pieces,
+    PentoscopePlacedPiece? exclude,
+  }) {
+    final src = pieces ?? state.placedPieces;
+    final p = Plateau.allVisible(state.plateau.width, state.plateau.height);
+    for (final placed in src) {
+      if (exclude != null && placed.piece.id == exclude.piece.id) continue;
+      for (final cell in placed.absoluteCells) {
+        p.setCell(cell.x, cell.y, placed.piece.id);
       }
     }
-    return newPlateau;
+    return p;
   }
 
   // ========================================================================
